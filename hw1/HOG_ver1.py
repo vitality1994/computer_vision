@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 
 import warnings
 warnings.filterwarnings("ignore")
-#%%
 
 #%%
 '''
@@ -14,16 +13,78 @@ Do not change the input/output of each function, and do not remove the provided 
 
 def get_differential_filter():
     # To do
+
+    def filter_x(diff_along_x, padded_im):
+
+        for row in range(im.shape[0]):
+            for column in range(im.shape[1]):
+                three_by_three = padded_im[row:row+3, column:column+3]
+                current_p = three_by_three[1, 1]
+                next_p = three_by_three[1, 2]
+
+                change = abs(next_p - current_p)
+
+                diff_along_x[row, column] = change
+
+        return diff_along_x
+
+    def filter_y(diff_along_y, padded_im):
+
+        for row in range(im.shape[0]):
+            for column in range(im.shape[1]):
+                three_by_three = padded_im[row:row+3, column:column+3]
+                current_p = three_by_three[1, 1]
+                next_p = three_by_three[2, 1]
+
+                change = abs(next_p - current_p)
+
+                diff_along_y[row, column] = change
+        
+        return diff_along_y 
+
     return filter_x, filter_y
 
 
 def filter_image(im, filter):
+
     # To do
+
+    # normalization
+    im_norm = (im-np.min(im))/(np.max(im)-np.min(im))
+
+    length = im.shape[0]
+    width = im.shape[1]
+
+    # zero padding
+    pads = np.zeros((length+2, width+2))
+    pads[1:length+1,1:width+1] = im_norm
+    padded_im = pads
+
+
+    filter_x = filter[0]
+    filter_y = filter[1]
+
+    im_filtered = []
+
+    diff_along_x = im_norm.copy()
+    diff_along_y = im_norm.copy()
+
+    im_filtered.append(filter_x(diff_along_x, padded_im))
+    im_filtered.append(filter_y(diff_along_y, padded_im))
+
     return im_filtered
 
 
 def get_gradient(im_dx, im_dy):
     # To do
+
+    im_dx_copied = im_dx.copy()
+    im_dy_copied = im_dy.copy()
+
+    grad_mag = (im_dx_copied**2+im_dy_copied**2)**(1/2)
+    grad_angle = np.arctan((im_dy_copied/(im_dx_copied+0.0000001)))
+
+
     return grad_mag, grad_angle
 
 
@@ -115,8 +176,29 @@ def visualize_face_detection(I_target,bounding_boxes,box_size):
 if __name__=='__main__':
 
     im = cv2.imread('cameraman.tif', 0)
-    
-    
+    #im = cv2.imread('albert-einstein.jpg', 0)
+
+    # apply differential filter along x
+    output_filter_x = filter_image(im, get_differential_filter())[0]
+    print('Here is the image applied the differential filter along x')
+    plt.imshow(output_filter_x, cmap='grey')
+    plt.show()
+
+    # apply differential filter along y
+    output_filter_y = filter_image(im, get_differential_filter())[1]
+    print('Here is the image applied the differential filter along y')
+    plt.imshow(output_filter_y, cmap='grey')
+    plt.show()
+
+    grad_mag = get_gradient(output_filter_x, output_filter_y)[0]
+    grad_angle = get_gradient(output_filter_x, output_filter_y)[1]
+
+    plt.imshow(grad_mag, cmap='grey')
+    plt.show()
+
+    plt.imshow(grad_angle, cmap='jet')
+    plt.show()
+
     hog = extract_hog(im)
 
     I_target= cv2.imread('target.png', 0)
