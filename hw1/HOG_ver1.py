@@ -14,33 +14,29 @@ Do not change the input/output of each function, and do not remove the provided 
 def get_differential_filter():
     # To do
 
-    def filter_x(diff_along_x, padded_im):
+    def filter_x(diff_along_x, padded_im, row, column):
 
-        for row in range(im.shape[0]):
-            for column in range(im.shape[1]):
-                three_by_three = padded_im[row:row+3, column:column+3]
-                current_p = three_by_three[1, 1]
-                next_p = three_by_three[1, 2]
+        # for row in range(shape[0]):
+        #     for column in range(shape[1]):
+        three_by_three = padded_im[row:row+3, column:column+3]
+        current_p = three_by_three[1, 1]
+        next_p = three_by_three[1, 2]
 
-                change = abs(next_p - current_p)
+        change = abs(next_p - current_p)
 
-                diff_along_x[row, column] = change
+        return change
 
-        return diff_along_x
+    def filter_y(diff_along_y, padded_im, row, column):
 
-    def filter_y(diff_along_y, padded_im):
+        # for row in range(shape[0]):
+        #     for column in range(shape[1]):
+        three_by_three = padded_im[row:row+3, column:column+3]
+        current_p = three_by_three[1, 1]
+        next_p = three_by_three[2, 1]
 
-        for row in range(im.shape[0]):
-            for column in range(im.shape[1]):
-                three_by_three = padded_im[row:row+3, column:column+3]
-                current_p = three_by_three[1, 1]
-                next_p = three_by_three[2, 1]
-
-                change = abs(next_p - current_p)
-
-                diff_along_y[row, column] = change
+        change = abs(next_p - current_p)
         
-        return diff_along_y 
+        return change
 
     return filter_x, filter_y
 
@@ -60,17 +56,29 @@ def filter_image(im, filter):
     pads[1:length+1,1:width+1] = im_norm
     padded_im = pads
 
-
-    filter_x = filter[0]
-    filter_y = filter[1]
-
     im_filtered = []
 
     diff_along_x = im_norm.copy()
     diff_along_y = im_norm.copy()
 
-    im_filtered.append(filter_x(diff_along_x, padded_im))
-    im_filtered.append(filter_y(diff_along_y, padded_im))
+    filter_x = filter[0]
+    filter_y = filter[1]
+
+    for row in range(im.shape[0]):
+        for column in range(im.shape[1]):
+             
+            diff_along_x[row, column] = filter_x(diff_along_x, padded_im, row, column) 
+
+
+    for row in range(im.shape[0]):
+        for column in range(im.shape[1]):
+             
+            diff_along_y[row, column] = filter_y(diff_along_x, padded_im, row, column)
+
+
+
+    im_filtered.append(diff_along_x)
+    im_filtered.append(diff_along_y)
 
     return im_filtered
 
@@ -82,7 +90,7 @@ def get_gradient(im_dx, im_dy):
     im_dy_copied = im_dy.copy()
 
     grad_mag = (im_dx_copied**2+im_dy_copied**2)**(1/2)
-    grad_angle = np.arctan((im_dy_copied/(im_dx_copied+0.0000001)))
+    grad_angle = np.arctan((im_dy_copied/(im_dx_copied+0.0000001)))*180/np.pi
 
 
     return grad_mag, grad_angle
@@ -90,11 +98,78 @@ def get_gradient(im_dx, im_dy):
 
 def build_histogram(grad_mag, grad_angle, cell_size):
     # To do
+
+    one_length_cell_size = cell_size
+
+    ori_histo = np.zeros((6, int(grad_angle.shape[0]/one_length_cell_size),\
+                        int(grad_angle.shape[1]/one_length_cell_size)))
+
+    for start_point_y in range(int(grad_angle.shape[0]/one_length_cell_size)):
+        for start_point_x in range(int(grad_angle.shape[1]/one_length_cell_size)):
+            
+            one_cell_angle = grad_angle[start_point_y*one_length_cell_size:\
+                                    start_point_y*one_length_cell_size+one_length_cell_size, \
+                                    start_point_x*one_length_cell_size:\
+                                    start_point_x*one_length_cell_size+one_length_cell_size]
+            
+            one_cell_mag = grad_mag[start_point_y*one_length_cell_size:\
+                                    start_point_y*one_length_cell_size+one_length_cell_size, \
+                                    start_point_x*one_length_cell_size:\
+                                    start_point_x*one_length_cell_size+one_length_cell_size]
+
+            bin_1 = 0
+            bin_2 = 0
+            bin_3 = 0
+            bin_4 = 0
+            bin_5 = 0
+            bin_6 = 0
+
+                    
+            for mag, angle in zip(np.nditer(one_cell_mag), np.nditer(one_cell_angle)):
+                    
+                    if (0<=angle and angle<5) or (165<=angle and angle<180):
+                            bin_1+=mag
+                    elif 15<=angle and angle<45:
+                            bin_2+=mag
+                    elif 45<=angle and angle<75:
+                            bin_3+=mag
+                    elif 75<=angle and angle<105:
+                            bin_4+=mag
+                    elif 105<=angle and angle<135:
+                            bin_5+=mag
+                    elif 135<=angle and angle<165:
+                            bin_6+=mag
+                            
+            bins = [bin_1, bin_2, bin_3, bin_4, bin_5, bin_6]
+            
+            for num_bin in range(6):   
+                    
+                    ori_histo[num_bin, start_point_y, start_point_x]=bins[num_bin]
+
     return ori_histo
 
 
 def get_block_descriptor(ori_histo, block_size):
     # To do
+    block_size = block_size
+
+    ori_histo_normalized = np.zeros((6*block_size**2, ori_histo.shape[1]-block_size+1, ori_histo.shape[2]-block_size+1))
+
+    for start_point_y in range(ori_histo.shape[1]-block_size+1):
+        for start_point_x in range(ori_histo.shape[2]-block_size+1):
+            
+            one_block = ori_histo[:, start_point_x:start_point_x+block_size,\
+                                start_point_y:start_point_y+block_size]
+
+            denominator = np.sqrt((one_block.flatten()**2).sum()+0.0000001)
+
+            concatenated_hog = one_block.flatten()/denominator
+
+            for num_bin in range(len(concatenated_hog)):   
+                
+                    ori_histo_normalized[num_bin, start_point_y, start_point_x]=concatenated_hog[num_bin]
+    
+    
     return ori_histo_normalized
 
 
@@ -103,8 +178,18 @@ def extract_hog(im):
     im = im.astype('float') / 255.0
     # To do
 
+    output_filter_x = filter_image(im, get_differential_filter())[0]
+    output_filter_y = filter_image(im, get_differential_filter())[1]
+
+    grad_mag = get_gradient(output_filter_x, output_filter_y)[0]
+    grad_angle = get_gradient(output_filter_x, output_filter_y)[1]
+
+    ori_histo = build_histogram(grad_mag, grad_angle, 3)
+
+    hog = get_block_descriptor(ori_histo, 2)
+
     # visualize to verify
-    visualize_hog(im, hog, 8, 2)
+    # visualize_hog(im, hog, 3, 2)
 
     return hog
 
@@ -131,6 +216,38 @@ def visualize_hog(im, hog, cell_size, block_size):
 
 def face_recognition(I_target, I_template):
     # To do
+
+
+    template_norm_desc = extract_hog(I_template)
+
+    y_length_template = I_template.shape[0]
+    x_length_template = I_template.shape[1]
+
+    bounding_boxes = []
+
+    for start_point_y in range(I_target.shape[0]-y_length_template):
+        for start_point_x in range(I_target.shape[1]-x_length_template):
+
+                if start_point_x%5==0:
+
+                    box = I_target[start_point_y:start_point_y+y_length_template,\
+                                    start_point_x:start_point_x+x_length_template]
+                    
+                    a = template_norm_desc.flatten()
+                    b = extract_hog(box)
+                    
+
+                    sim = np.dot(a,b.flatten())/(np.linalg.norm(a)*np.linalg.norm(b))
+
+
+
+                    if sim>0.5:
+                        bounding_boxes.append([start_point_x, start_point_y, sim])
+
+    
+    
+    bounding_boxes = np.array(bounding_boxes)
+
     return  bounding_boxes
 
 
@@ -163,7 +280,7 @@ def visualize_face_detection(I_target,bounding_boxes,box_size):
         if y2>hh-1:
             y2=hh-1
         fimg = cv2.rectangle(fimg, (int(x1),int(y1)), (int(x2),int(y2)), (255, 0, 0), 1)
-        cv2.putText(fimg, "%.2f"%bounding_boxes[ii,2], (int(x1)+1, int(y1)+2), cv2.FONT_HERSHEY_SIMPLEX , 0.5, (0, 255, 0), 2, cv2.LINE_AA)
+        cv2.putText(fimg, "%.2f"%bounding_boxes[ii,2], (int(x1)+1, int(y1)+2), cv2.FONT_HERSHEY_SIMPLEX , 0.3, (0, 255, 0), 1, cv2.LINE_AA)
 
 
     plt.figure(3)
@@ -175,29 +292,7 @@ def visualize_face_detection(I_target,bounding_boxes,box_size):
 #%%
 if __name__=='__main__':
 
-    im = cv2.imread('cameraman.tif', 0)
-    #im = cv2.imread('albert-einstein.jpg', 0)
-
-    # apply differential filter along x
-    output_filter_x = filter_image(im, get_differential_filter())[0]
-    print('Here is the image applied the differential filter along x')
-    plt.imshow(output_filter_x, cmap='grey')
-    plt.show()
-
-    # apply differential filter along y
-    output_filter_y = filter_image(im, get_differential_filter())[1]
-    print('Here is the image applied the differential filter along y')
-    plt.imshow(output_filter_y, cmap='grey')
-    plt.show()
-
-    grad_mag = get_gradient(output_filter_x, output_filter_y)[0]
-    grad_angle = get_gradient(output_filter_x, output_filter_y)[1]
-
-    plt.imshow(grad_mag, cmap='grey')
-    plt.show()
-
-    plt.imshow(grad_angle, cmap='jet')
-    plt.show()
+    im = cv2.imread('template.png', 0)
 
     hog = extract_hog(im)
 
@@ -208,7 +303,7 @@ if __name__=='__main__':
     #mxn  face template
 
     bounding_boxes=face_recognition(I_target, I_template)
-
+    print(bounding_boxes)
     I_target_c= cv2.imread('target.png')
     # MxN image (just for visualization)
     visualize_face_detection(I_target_c, bounding_boxes, I_template.shape[0])
