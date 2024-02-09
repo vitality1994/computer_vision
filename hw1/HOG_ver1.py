@@ -12,29 +12,26 @@ Do not change the input/output of each function, and do not remove the provided 
 '''
 
 def get_differential_filter():
+
     # To do
 
     def filter_x(diff_along_x, padded_im, row, column):
 
-        # for row in range(shape[0]):
-        #     for column in range(shape[1]):
         three_by_three = padded_im[row:row+3, column:column+3]
         current_p = three_by_three[1, 1]
         next_p = three_by_three[1, 2]
 
-        change = abs(next_p - current_p)
+        change = next_p - current_p
 
         return change
 
     def filter_y(diff_along_y, padded_im, row, column):
 
-        # for row in range(shape[0]):
-        #     for column in range(shape[1]):
         three_by_three = padded_im[row:row+3, column:column+3]
         current_p = three_by_three[1, 1]
         next_p = three_by_three[2, 1]
 
-        change = abs(next_p - current_p)
+        change = next_p - current_p
         
         return change
 
@@ -45,13 +42,11 @@ def filter_image(im, filter):
 
     # To do
 
-    # normalization
     im_norm = (im-np.min(im))/(np.max(im)-np.min(im))
 
     length = im.shape[0]
     width = im.shape[1]
 
-    # zero padding
     pads = np.zeros((length+2, width+2))
     pads[1:length+1,1:width+1] = im_norm
     padded_im = pads
@@ -84,6 +79,7 @@ def filter_image(im, filter):
 
 
 def get_gradient(im_dx, im_dy):
+
     # To do
 
     im_dx_copied = im_dx.copy()
@@ -92,11 +88,17 @@ def get_gradient(im_dx, im_dy):
     grad_mag = (im_dx_copied**2+im_dy_copied**2)**(1/2)
     grad_angle = np.arctan((im_dy_copied/(im_dx_copied+0.0000001)))*180/np.pi
 
+    for i in range(grad_angle.shape[0]):
+        for j in range(grad_angle.shape[1]):
+            
+            if grad_angle[i][j]<0:
+                grad_angle[i][j] += 180
 
     return grad_mag, grad_angle
 
 
 def build_histogram(grad_mag, grad_angle, cell_size):
+
     # To do
 
     one_length_cell_size = cell_size
@@ -150,7 +152,9 @@ def build_histogram(grad_mag, grad_angle, cell_size):
 
 
 def get_block_descriptor(ori_histo, block_size):
+
     # To do
+
     block_size = block_size
 
     ori_histo_normalized = np.zeros((6*block_size**2, ori_histo.shape[1]-block_size+1, ori_histo.shape[2]-block_size+1))
@@ -158,8 +162,8 @@ def get_block_descriptor(ori_histo, block_size):
     for start_point_y in range(ori_histo.shape[1]-block_size+1):
         for start_point_x in range(ori_histo.shape[2]-block_size+1):
             
-            one_block = ori_histo[:, start_point_x:start_point_x+block_size,\
-                                start_point_y:start_point_y+block_size]
+            one_block = ori_histo[:, start_point_y:start_point_y+block_size,\
+                                start_point_x:start_point_x+block_size]
 
             denominator = np.sqrt((one_block.flatten()**2).sum()+0.0000001)
 
@@ -176,6 +180,7 @@ def get_block_descriptor(ori_histo, block_size):
 def extract_hog(im):
     # convert grey-scale image to double format
     im = im.astype('float') / 255.0
+    
     # To do
 
     output_filter_x = filter_image(im, get_differential_filter())[0]
@@ -188,8 +193,7 @@ def extract_hog(im):
 
     hog = get_block_descriptor(ori_histo, 2)
 
-    # visualize to verify
-    # visualize_hog(im, hog, 3, 2)
+    visualize_hog(im, hog, 3, 2)
 
     return hog
 
@@ -215,38 +219,81 @@ def visualize_hog(im, hog, cell_size, block_size):
 
 
 def face_recognition(I_target, I_template):
+
     # To do
 
-
     template_norm_desc = extract_hog(I_template)
-
-    y_length_template = I_template.shape[0]
-    x_length_template = I_template.shape[1]
+    target_norm_desc = extract_hog(I_target)
+    
+    y_length_template = template_norm_desc.shape[1]
+    x_length_template = template_norm_desc.shape[2]
 
     bounding_boxes = []
 
-    for start_point_y in range(I_target.shape[0]-y_length_template):
-        for start_point_x in range(I_target.shape[1]-x_length_template):
+    for start_point_y in range(target_norm_desc.shape[1]-y_length_template):
+        for start_point_x in range(target_norm_desc.shape[2]-x_length_template):
+                
+            box = target_norm_desc[:, start_point_y:start_point_y+y_length_template,\
+                            start_point_x:start_point_x+x_length_template]
+            
+            a = template_norm_desc.flatten()    
+            b = box.flatten()
 
-                if start_point_x%5==0:
+            
+            try:
 
-                    box = I_target[start_point_y:start_point_y+y_length_template,\
-                                    start_point_x:start_point_x+x_length_template]
-                    
-                    a = template_norm_desc.flatten()
-                    b = extract_hog(box)
-                    
+                sim = np.dot(a,b)/(np.linalg.norm(a)*np.linalg.norm(b))
+            
+            except:
+                sim = 0
 
-                    sim = np.dot(a,b.flatten())/(np.linalg.norm(a)*np.linalg.norm(b))
+            if sim>0.42 :
+                
+                # 3 is size of cell defined above
+                bounding_boxes.append([start_point_x*3, start_point_x*3+x_length_template,\
+                                        start_point_y*3, start_point_y*3+y_length_template,
+                                        sim])
 
 
+    bounding_boxes_1 = np.array(bounding_boxes)
+    bounding_boxes_2 = np.array(bounding_boxes)
 
-                    if sim>0.5:
-                        bounding_boxes.append([start_point_x, start_point_y, sim])
+    result_bbs = []
 
+    for bb1 in bounding_boxes_1:
+        bb_group = []
+        
+        for bb2 in bounding_boxes_2:
+            
+            x_left = max(bb1[0], bb2[0])
+            x_right = min(bb1[1], bb2[1])
+            y_bottom = min(bb1[3], bb2[3])
+            y_top = max(bb1[2], bb2[2])
+
+            if x_right > x_left and y_top < y_bottom:
+
+                intersection_area = (x_right - x_left) * (y_bottom - y_top)
+
+                bb1_area = (bb1[1]-bb1[0]) * (bb1[3] - bb1[2])
+                bb2_area = (bb2[1]-bb2[0]) * (bb2[3] - bb2[2])
+
+                iou = intersection_area / float(bb1_area + bb2_area - intersection_area)
+            
+                if iou>0.1:
+                    bb_group.append(bb2)
+
+        list_sims = []   
+
+        for bbs in bb_group:
+            list_sims.append(bbs[4])
+
+
+        bb_with_max = bb_group[np.argmax(list_sims)]
+        result_bbs.append((bb_with_max[0], bb_with_max[2], bb_with_max[4]))
+        
     
+    bounding_boxes = np.array(result_bbs)
     
-    bounding_boxes = np.array(bounding_boxes)
 
     return  bounding_boxes
 
@@ -292,8 +339,7 @@ def visualize_face_detection(I_target,bounding_boxes,box_size):
 #%%
 if __name__=='__main__':
 
-    im = cv2.imread('template.png', 0)
-
+    im = cv2.imread('cameraman.tif', 0)
     hog = extract_hog(im)
 
     I_target= cv2.imread('target.png', 0)
@@ -303,10 +349,9 @@ if __name__=='__main__':
     #mxn  face template
 
     bounding_boxes=face_recognition(I_target, I_template)
-    print(bounding_boxes)
+    
     I_target_c= cv2.imread('target.png')
     # MxN image (just for visualization)
     visualize_face_detection(I_target_c, bounding_boxes, I_template.shape[0])
     #this is visualization code.
-
 # %%
