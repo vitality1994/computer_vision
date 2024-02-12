@@ -189,11 +189,11 @@ def extract_hog(im):
     grad_mag = get_gradient(output_filter_x, output_filter_y)[0]
     grad_angle = get_gradient(output_filter_x, output_filter_y)[1]
 
-    ori_histo = build_histogram(grad_mag, grad_angle, 3)
+    ori_histo = build_histogram(grad_mag, grad_angle, 8)
 
     hog = get_block_descriptor(ori_histo, 2)
 
-    visualize_hog(im, hog, 3, 2)
+    visualize_hog(im, hog, 8, 2)
 
     return hog
 
@@ -222,19 +222,21 @@ def face_recognition(I_target, I_template):
 
     # To do
 
+    y_length_template = I_template.shape[0]
+
     template_norm_desc = extract_hog(I_template)
     target_norm_desc = extract_hog(I_target)
     
-    y_length_template = template_norm_desc.shape[1]
-    x_length_template = template_norm_desc.shape[2]
+    y_norm_length_template = template_norm_desc.shape[1]
+    x_norm_length_template = template_norm_desc.shape[2]
 
     bounding_boxes = []
 
-    for start_point_y in range(target_norm_desc.shape[1]-y_length_template):
-        for start_point_x in range(target_norm_desc.shape[2]-x_length_template):
+    for start_point_y in range(target_norm_desc.shape[1]-y_norm_length_template):
+        for start_point_x in range(target_norm_desc.shape[2]-x_norm_length_template):
                 
-            box = target_norm_desc[:, start_point_y:start_point_y+y_length_template,\
-                            start_point_x:start_point_x+x_length_template]
+            box = target_norm_desc[:, start_point_y:start_point_y+y_norm_length_template,\
+                            start_point_x:start_point_x+x_norm_length_template]
             
             a = template_norm_desc.flatten()    
             b = box.flatten()
@@ -247,42 +249,53 @@ def face_recognition(I_target, I_template):
             except:
                 sim = 0
 
-            if sim>0.42 :
+            if sim>0.65 :
                 
-                # 3 is size of cell defined above
-                bounding_boxes.append([start_point_x*3, start_point_x*3+x_length_template,\
-                                        start_point_y*3, start_point_y*3+y_length_template,
+                # 8 is size of cell defined above
+                bounding_boxes.append([start_point_x*8, start_point_x*8+I_template.shape[0],\
+                                        start_point_y*8, start_point_y*8+I_template.shape[1],
                                         sim])
-
+                
 
     bounding_boxes_1 = np.array(bounding_boxes)
     bounding_boxes_2 = np.array(bounding_boxes)
 
     result_bbs = []
 
-    for bb1 in bounding_boxes_1:
+    for bb1 in bounding_boxes_1[1:]:
         bb_group = []
         
         for bb2 in bounding_boxes_2:
-            
+
+
             x_left = max(bb1[0], bb2[0])
             x_right = min(bb1[1], bb2[1])
             y_bottom = min(bb1[3], bb2[3])
             y_top = max(bb1[2], bb2[2])
 
-            if x_right > x_left and y_top < y_bottom:
-
+            if x_left<x_right and y_top<y_bottom:
+                
                 intersection_area = (x_right - x_left) * (y_bottom - y_top)
+            
+            else:
+                 intersection_area = 0
+            
+            if intersection_area<y_length_template**2 and intersection_area>0:
 
                 bb1_area = (bb1[1]-bb1[0]) * (bb1[3] - bb1[2])
                 bb2_area = (bb2[1]-bb2[0]) * (bb2[3] - bb2[2])
+                
 
-                iou = intersection_area / float(bb1_area + bb2_area - intersection_area)
-            
-                if iou>0.1:
-                    bb_group.append(bb2)
+                if intersection_area < float(bb1_area + bb2_area - intersection_area):
 
-        list_sims = []   
+                    iou = intersection_area / float(bb1_area + bb2_area - intersection_area)
+        
+                    if iou>0.5:
+                        bb_group.append(bb2)
+                        
+            bb_group.append(bb1)
+
+        list_sims = []
 
         for bbs in bb_group:
             list_sims.append(bbs[4])
@@ -290,6 +303,8 @@ def face_recognition(I_target, I_template):
 
         bb_with_max = bb_group[np.argmax(list_sims)]
         result_bbs.append((bb_with_max[0], bb_with_max[2], bb_with_max[4]))
+
+
         
     
     bounding_boxes = np.array(result_bbs)
@@ -301,7 +316,6 @@ def face_recognition(I_target, I_template):
 def visualize_face_detection(I_target,bounding_boxes,box_size):
 
     hh,ww,cc=I_target.shape
-
     fimg=I_target.copy()
     for ii in range(bounding_boxes.shape[0]):
 
@@ -339,7 +353,7 @@ def visualize_face_detection(I_target,bounding_boxes,box_size):
 #%%
 if __name__=='__main__':
 
-    im = cv2.imread('cameraman.tif', 0)
+    im = cv2.imread('cameraman.tif', 0)    
     hog = extract_hog(im)
 
     I_target= cv2.imread('target.png', 0)
@@ -354,4 +368,5 @@ if __name__=='__main__':
     # MxN image (just for visualization)
     visualize_face_detection(I_target_c, bounding_boxes, I_template.shape[0])
     #this is visualization code.
+
 # %%
