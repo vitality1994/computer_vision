@@ -1,4 +1,3 @@
-#%%
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -6,7 +5,6 @@ import matplotlib.pyplot as plt
 import warnings
 warnings.filterwarnings("ignore")
 
-#%%
 '''
 Do not change the input/output of each function, and do not remove the provided functions.
 '''
@@ -257,6 +255,7 @@ def face_recognition(I_target, I_template):
                                         sim])
                 
 
+
     bounding_boxes_1 = np.array(bounding_boxes)
     bounding_boxes_2 = np.array(bounding_boxes)
 
@@ -290,7 +289,7 @@ def face_recognition(I_target, I_template):
 
                     iou = intersection_area / float(bb1_area + bb2_area - intersection_area)
         
-                    if iou>0.5:
+                    if iou>0.3:
                         bb_group.append(bb2)
                         
             bb_group.append(bb1)
@@ -350,13 +349,12 @@ def visualize_face_detection(I_target,bounding_boxes,box_size):
 
 
 
-#%%
 if __name__=='__main__':
 
     im = cv2.imread('cameraman.tif', 0)    
     hog = extract_hog(im)
 
-    I_target= cv2.imread('target.png', 0)
+    I_target= cv2.imread('people.png', 0)
     #MxN image
 
     I_template = cv2.imread('template.png', 0)
@@ -364,9 +362,8 @@ if __name__=='__main__':
 
     bounding_boxes=face_recognition(I_target, I_template)
     
-    I_target_c= cv2.imread('target.png')
+    I_target_c= cv2.imread('people.png')
     # MxN image (just for visualization)
     visualize_face_detection(I_target_c, bounding_boxes, I_template.shape[0])
     #this is visualization code.
 
-# %%
