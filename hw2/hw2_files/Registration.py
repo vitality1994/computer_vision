@@ -52,9 +52,127 @@ def find_match(img1, img2):
     return x1, x2
 
 
+
+
 def align_image_using_feature(x1, x2, ransac_thr, ransac_iter):
+
+
+    template = cv2.imread('./JS_template.jpg', 0)
+    target = cv2.imread('./JS_target1.jpg', 0)
+
     # To do
-    return A
+
+    nums_inliers = []
+    coeffs_list = []
+
+    for num_iter in range(ransac_iter):
+
+        xs_temp = []
+        xs_target = []
+        ys_temp = []
+        ys_target = []
+
+        randints = np.random.randint(0, len(x1), 3)
+
+        x1_sampled = x1[randints]
+        x2_sampled = x2[randints]
+
+
+        for one_x1, one_x2 in zip(x1_sampled, x2_sampled):
+
+            x_temp = one_x1[0]
+            y_temp = one_x1[1]
+
+            x_target = one_x2[0]
+            y_target = one_x2[1]
+
+            # xs_temp.append([x_temp, 1])
+            # xs_target.append([x_target])
+
+            # ys_temp.append([y_temp, 1])
+            # ys_target.append([y_target])
+
+
+            xs_temp.append(x_temp)
+            xs_target.append(x_target)
+
+            ys_temp.append(y_temp)
+            ys_target.append(y_target)
+
+
+        xs_temp = np.array(xs_temp)
+        xs_target = np.array(xs_target)
+        ys_temp = np.array(ys_temp)
+        ys_target = np.array(ys_target)
+
+
+        A_x = np.vstack([xs_temp, np.ones(len(xs_temp))]).T
+        m_x, c_x = np.linalg.lstsq(A_x, xs_target, rcond=None)[0]
+
+        A_y = np.vstack([ys_temp, np.ones(len(ys_temp))]).T
+        m_y, c_y = np.linalg.lstsq(A_y, ys_target, rcond=None)[0]
+
+        
+        inliers_temp = []
+        inliers_target = [] 
+
+        for one_cd_temp, one_cd_target in zip(x1, x2):
+            
+            d_x_from_line = abs(one_cd_target[0]-m_x*one_cd_temp[0]-c_x)
+            d_y_from_line  = abs(one_cd_target[1]-m_y*one_cd_temp[1]-c_y)
+
+            if d_x_from_line < ransac_thr and d_y_from_line < ransac_thr:
+
+                inliers_temp.append(one_cd_temp)
+                inliers_target.append(one_cd_target)
+        
+
+        num_inlier = len(inliers_temp)
+        print(num_inlier)
+
+        nums_inliers.append(num_inlier)
+        coeffs_list.append([m_x, c_x, m_y, c_y])
+
+        inliers_temp = np.array(inliers_temp)
+        inliers_target = np.array(inliers_target)
+
+        visualize_find_match(template, target, inliers_temp, inliers_target)
+
+
+    idx_max_inliners = np.argmax(nums_inliers)
+    m_x, c_x, m_y, c_y = coeffs_list[idx_max_inliners]
+
+
+    inliers_temp = []
+    inliers_target = [] 
+
+    for one_cd_temp, one_cd_target in zip(x1, x2):
+        
+        d_x_from_line = abs(one_cd_target[0]-m_x*one_cd_temp[0]-c_x)
+        d_y_from_line  = abs(one_cd_target[1]-m_y*one_cd_temp[1]-c_y)
+
+
+        if d_x_from_line < ransac_thr and d_y_from_line < ransac_thr:
+
+            inliers_temp.append(one_cd_temp)
+            inliers_target.append(one_cd_target)
+   
+
+    print(len(inliers_temp))
+
+
+    inliers_temp = np.array(inliers_temp)
+    inliers_target = np.array(inliers_target)
+
+    ### 3x3 affine transformation should be implemented
+
+
+
+    return inliers_temp, inliers_target, A
+
+
+
+
 
 def warp_image(img, A, output_size):
     # To do
@@ -86,6 +204,17 @@ def visualize_find_match(img1, img2, x1, x2, img_h=500):
         plt.plot([x1[i, 0], x2[i, 0]], [x1[i, 1], x2[i, 1]], 'b')
         plt.plot([x1[i, 0], x2[i, 0]], [x1[i, 1], x2[i, 1]], 'bo')
     plt.axis('off')
+
+    x2_only_xs = list(map(lambda x: x[0], x2))
+    x2_only_ys = list(map(lambda x: x[1], x2))
+
+    x_max_x2 = max(x2_only_xs)
+    x_min_x2 = min(x2_only_xs)
+    y_max_x2 = max(x2_only_ys)
+    y_min_x2 = min(x2_only_ys)
+
+    plt.plot([x_min_x2, x_max_x2, x_max_x2, x_min_x2, x_min_x2], [y_min_x2, y_min_x2, y_max_x2, y_max_x2, y_min_x2], 'r-')
+
     plt.show()
 
 def visualize_align_image(template, target, A, A_refined, errors=None):
@@ -169,17 +298,25 @@ def visualize_track_multi_frames(template, img_list, A_list):
 
 #%%
 if __name__ == '__main__':
+
     template = cv2.imread('./JS_template.jpg', 0)  # read as grey scale image
     target_list = []
     for i in range(4):
         target = cv2.imread('./JS_target{}.jpg'.format(i+1), 0)  # read as grey scale image
         target_list.append(target) 
 
- 
+
+    # ----------------- #3
     x1, x2 = find_match(template, target_list[0])
     visualize_find_match(template, target_list[0], x1, x2)
 
+
+    # ----------------- #4
+    ransac_thr = 150
+    ransac_iter = 5
+
     A = align_image_using_feature(x1, x2, ransac_thr, ransac_iter)
+    visualize_find_match(template, target_list[0], A[0], A[1])
 
     img_warped = warp_image(target_list[0], A, template.shape)
     plt.imshow(img_warped, cmap='gray', vmin=0, vmax=255)
