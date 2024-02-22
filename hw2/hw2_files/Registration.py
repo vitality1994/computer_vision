@@ -56,10 +56,12 @@ def find_match(img1, img2):
 
 def align_image_using_feature(x1, x2, ransac_thr, ransac_iter):
 
+    x1_for_affine = []
 
-    template = cv2.imread('./JS_template.jpg', 0)
-    target = cv2.imread('./JS_target1.jpg', 0)
-
+    for i in x1:
+        x1_for_affine.append([i[0], i[1], 1])
+    
+    x1_for_affine = np.array(x1_for_affine)
     # To do
 
     nums_inliers = []
@@ -85,12 +87,6 @@ def align_image_using_feature(x1, x2, ransac_thr, ransac_iter):
 
             x_target = one_x2[0]
             y_target = one_x2[1]
-
-            # xs_temp.append([x_temp, 1])
-            # xs_target.append([x_target])
-
-            # ys_temp.append([y_temp, 1])
-            # ys_target.append([y_target])
 
 
             xs_temp.append(x_temp)
@@ -128,15 +124,12 @@ def align_image_using_feature(x1, x2, ransac_thr, ransac_iter):
         
 
         num_inlier = len(inliers_temp)
-        print(num_inlier)
 
         nums_inliers.append(num_inlier)
         coeffs_list.append([m_x, c_x, m_y, c_y])
 
         inliers_temp = np.array(inliers_temp)
         inliers_target = np.array(inliers_target)
-
-        visualize_find_match(template, target, inliers_temp, inliers_target)
 
 
     idx_max_inliners = np.argmax(nums_inliers)
@@ -158,25 +151,144 @@ def align_image_using_feature(x1, x2, ransac_thr, ransac_iter):
             inliers_target.append(one_cd_target)
    
 
-    print(len(inliers_temp))
-
-
     inliers_temp = np.array(inliers_temp)
     inliers_target = np.array(inliers_target)
+    
+
+    inliers_temp = np.array(list(map(lambda x: [x[0], x[1], 1], inliers_temp)))
+    inliers_target = np.array(list(map(lambda x: [x[0], x[1], 1], inliers_target)))
+
+
 
     ### 3x3 affine transformation should be implemented
+    
+    A = np.dot(np.linalg.inv(np.dot(np.transpose(inliers_temp), inliers_temp)),np.dot(np.transpose(inliers_temp), inliers_target))
 
 
-
-    return inliers_temp, inliers_target, A
-
-
+    return A
 
 
 
 def warp_image(img, A, output_size):
+
+
     # To do
+
+    part_target = img
+
+    img_cds = []
+
+    for x_xaxis in range(part_target.shape[1]):
+        for y_yaxis in range(part_target.shape[0]):
+
+            img_cds.append([x_xaxis, y_yaxis, 1])
+
+
+    img_cds = np.array(img_cds)
+
+    inversed_cds = np.dot(img_cds, np.linalg.inv(A))
+
+
+    img2 = np.zeros((output_size[0], output_size[1]))
+
+ 
+
+    for i, j in zip(inversed_cds, img_cds):
+
+        x_x_axis = i[0]
+        y_y_axis = i[1]
+
+        if x_x_axis>0 and y_y_axis>0:
+            if int(y_y_axis)<img2.shape[0] and int(x_x_axis)<img2.shape[1]:
+                img2[int(y_y_axis), int(x_x_axis)] = part_target[j[1], j[0]]
+
+
+    
+
+    img2_rows = []
+    img2_columns = []
+    img2_pixel_values = []
+
+
+    for row in range(img2.shape[0]):
+        for column in range(img2.shape[1]):
+            img2_rows.append(row)
+            img2_columns.append(column)
+            img2_pixel_values.append(img2[row, column])
+
+    img2_rows = np.array(img2_rows)
+    img2_columns = np.array(img2_columns)
+    img2_pixel_values = np.array(img2_pixel_values)
+
+
+
+    # X = np.linspace(min(img2_rows), max(img2_rows))
+    # Y = np.linspace(min(img2_columns), max(img2_columns)) 
+    # X, Y = np.meshgrid(X, Y)
+  
+    # interp = interpolate.LinearNDInterpolator(list(zip(img2_rows, img2_columns)), img2_pixel_values)
+    # Z = interp(img2_rows, img2_columns)
+
+
+
+    # Find the indices where z is 0
+    zero_indices = np.where(img2_pixel_values == 0)[0]
+    print(zero_indices)
+
+    # Create a grid of points for interpolation
+    xi, yi = np.mgrid[min(img2_rows)-1:max(img2_rows), min(img2_columns)-1:max(img2_columns)]
+
+    # Interpolate values using griddata with 'nearest' method
+    zi = interpolate.griddata((img2_rows, img2_columns), img2_pixel_values, (xi, yi), method='nearest')
+    zi = zi.flatten()
+
+    # Replace zero values with interpolated values
+    for idx in zero_indices:
+        img2_pixel_values[idx] = zi[idx]
+
+
+
+    Z = np.array(img2_pixel_values).reshape(1068, 777)
+
+
+    print(Z)
+
+    zero_indices = np.where(img2_pixel_values == 0)[0]
+    print(zero_indices)
+
+
+    # Create a grid of points for interpolation
+    xi, yi = np.mgrid[min(img2_rows)-1:max(img2_rows), min(img2_columns)-1:max(img2_columns)]
+
+    # Interpolate values using griddata with 'nearest' method
+    zi = interpolate.griddata((img2_rows, img2_columns), img2_pixel_values, (xi, yi), method='nearest')
+    zi = zi.flatten()
+
+    # Replace zero values with interpolated values
+    for idx in zero_indices:
+        img2_pixel_values[idx] = zi[idx]
+
+
+
+    Z = np.array(img2_pixel_values).reshape(1068, 777)
+
+
+    print(Z)
+
+    zero_indices = np.where(img2_pixel_values == 0)[0]
+    print(zero_indices)
+
+
+    img_warped = Z
+        
+
+
     return img_warped
+
+
+
+
+
 
 
 def align_image(template, target, A):
@@ -205,15 +317,17 @@ def visualize_find_match(img1, img2, x1, x2, img_h=500):
         plt.plot([x1[i, 0], x2[i, 0]], [x1[i, 1], x2[i, 1]], 'bo')
     plt.axis('off')
 
-    x2_only_xs = list(map(lambda x: x[0], x2))
-    x2_only_ys = list(map(lambda x: x[1], x2))
+    # ------- this is what I made -------------------
+    # x2_only_xs = list(map(lambda x: x[0], x2))
+    # x2_only_ys = list(map(lambda x: x[1], x2))
 
-    x_max_x2 = max(x2_only_xs)
-    x_min_x2 = min(x2_only_xs)
-    y_max_x2 = max(x2_only_ys)
-    y_min_x2 = min(x2_only_ys)
+    # x_max_x2 = max(x2_only_xs)
+    # x_min_x2 = min(x2_only_xs)
+    # y_max_x2 = max(x2_only_ys)
+    # y_min_x2 = min(x2_only_ys)
 
-    plt.plot([x_min_x2, x_max_x2, x_max_x2, x_min_x2, x_min_x2], [y_min_x2, y_min_x2, y_max_x2, y_max_x2, y_min_x2], 'r-')
+    # plt.plot([x_min_x2, x_max_x2, x_max_x2, x_min_x2, x_min_x2], [y_min_x2, y_min_x2, y_max_x2, y_max_x2, y_min_x2], 'r-')
+    # -----------------------------------------------
 
     plt.show()
 
@@ -316,10 +430,14 @@ if __name__ == '__main__':
     ransac_iter = 5
 
     A = align_image_using_feature(x1, x2, ransac_thr, ransac_iter)
-    visualize_find_match(template, target_list[0], A[0], A[1])
 
     img_warped = warp_image(target_list[0], A, template.shape)
     plt.imshow(img_warped, cmap='gray', vmin=0, vmax=255)
+    plt.axis('off')
+    plt.show()
+
+    error_map = abs(template - img_warped)
+    plt.imshow(error_map, cmap='jet', vmin=0, vmax=255)
     plt.axis('off')
     plt.show()
 
@@ -331,4 +449,4 @@ if __name__ == '__main__':
 
 
 
-# %%
+ # %%
