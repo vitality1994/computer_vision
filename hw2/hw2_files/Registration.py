@@ -270,10 +270,11 @@ def align_image(template, target, A):
         # Warp the image with the current estimate of A
         warped_img = warp_image(target, A, template.shape)
         
-        if num_itr%5==0:
+        # To check warped image every 5 iterations
+        # if num_itr%5==0:
             
-            plt.imshow(warped_img, cmap='gray')
-            plt.show()
+        #     plt.imshow(warped_img, cmap='gray')
+        #     plt.show()
 
         # Compute the error image
         error = warped_img - template
@@ -294,8 +295,9 @@ def align_image(template, target, A):
     
         num_itr += 1
 
-        print('Magnitude of required change of A is:', norm_error)
-        print('Number of iterations:', num_itr)
+        # Print out performance of codes...
+        # print('Magnitude of required change of A is:', norm_error)
+        # print('Number of iterations:', num_itr)
 
         errors_list.append(norm_error)
 
@@ -333,10 +335,8 @@ def track_multi_frames(template, img_list):
     for i in img_list:
 
         A_refined, error = align_image(template, i, A)
-        visualize_align_image(template, i, A, A_refined, error)
 
         A_list.append(A_refined)
-
 
     return A_list
 
@@ -490,11 +490,13 @@ if __name__ == '__main__':
 
     visualize_align_image_using_feature(template, target_list[0], x1, x2, A, ransac_thr, img_h=500)
 
-    A_refined, errors = align_image(template, target_list[0], A)
-    visualize_align_image(template, target_list[0], A, A_refined, errors)
+    A_refined, errors = align_image(template, target_list[1], A)
+    visualize_align_image(template, target_list[1], A, A_refined, errors)
 
     A_list = track_multi_frames(template, target_list)
     visualize_track_multi_frames(template, target_list, A_list)
+
+
 
 
 # %%
