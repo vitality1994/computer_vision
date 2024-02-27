@@ -6,102 +6,7 @@ import matplotlib.pyplot as plt
 from sklearn.neighbors import NearestNeighbors
 from scipy import interpolate
 
-
-# --------- function from the hw1 start ---------------
-def get_differential_filter():
-
-    # To do
-
-    def filter_x(diff_along_x, padded_im, row, column):
-
-        three_by_three = padded_im[row:row+3, column:column+3]
-        current_p = three_by_three[1, 1]
-        next_p = three_by_three[1, 2]
-
-        change = next_p - current_p
-
-        return change
-
-    def filter_y(diff_along_y, padded_im, row, column):
-
-        three_by_three = padded_im[row:row+3, column:column+3]
-        current_p = three_by_three[1, 1]
-        next_p = three_by_three[2, 1]
-
-        change = next_p - current_p
-        
-        return change
-
-    return filter_x, filter_y
-
-
-
-def filter_image(im, filter):
-
-    # To do
-
-    im_norm = (im-np.min(im))/(np.max(im)-np.min(im))
-
-    length = im.shape[0]
-    width = im.shape[1]
-
-    pads = np.zeros((length+2, width+2))
-    pads[1:length+1,1:width+1] = im_norm
-    padded_im = pads
-
-    im_filtered = []
-
-    diff_along_x = im_norm.copy()
-    diff_along_y = im_norm.copy()
-
-    filter_x = filter[0]
-    filter_y = filter[1]
-
-    for row in range(im.shape[0]):
-        for column in range(im.shape[1]):
-             
-            diff_along_x[row, column] = filter_x(diff_along_x, padded_im, row, column) 
-
-
-    for row in range(im.shape[0]):
-        for column in range(im.shape[1]):
-             
-            diff_along_y[row, column] = filter_y(diff_along_x, padded_im, row, column)
-
-
-
-    im_filtered.append(diff_along_x)
-    im_filtered.append(diff_along_y)
-
-    return im_filtered
-
-
-
-def get_gradient(im_dx, im_dy):
-
-    # To do
-
-    im_dx_copied = im_dx.copy()
-    im_dy_copied = im_dy.copy()
-
-    grad_mag = (im_dx_copied**2+im_dy_copied**2)**(1/2)
-    grad_angle = np.arctan((im_dy_copied/(im_dx_copied+0.0000001)))*180/np.pi
-
-    for i in range(grad_angle.shape[0]):
-        for j in range(grad_angle.shape[1]):
-            
-            if grad_angle[i][j]<0:
-                grad_angle[i][j] += 180
-
-    return grad_mag, grad_angle
-# --------- function from the hw1 end ---------------
-
-
-
-
-
-
-
+#%%
 def find_match(img1, img2):
 
     # To do
@@ -144,6 +49,7 @@ def find_match(img1, img2):
     x2 = np.array(x2)
 
     return x1, x2
+
 
 
 
@@ -263,201 +169,175 @@ def align_image_using_feature(x1, x2, ransac_thr, ransac_iter):
 
 
 
+
 def warp_image(img, A, output_size):
 
     # To do
 
-    print()
-    print('Received a image for warping!')
-    print()
+    # Vectorize the creation of coordinates
+    y_indices, x_indices = np.indices((img.shape[0], img.shape[1]))
+    img_cds = np.stack([x_indices, y_indices, np.ones_like(x_indices)], axis=-1).reshape(-1, 3).T
 
-    part_target = img
+    # Apply the transformation
+    inversed_cds = np.linalg.inv(A) @ img_cds
 
-    img_cds = []
+    # Round the coordinates and clip to valid indices
+    inversed_cds = np.round(inversed_cds).astype(int)
+    valid_indices = (inversed_cds[0] >= 0) & (inversed_cds[0] < output_size[1]) & \
+                    (inversed_cds[1] >= 0) & (inversed_cds[1] < output_size[0])
 
+    # Create an empty image with the desired output size
+    img_warped = np.zeros(output_size)
 
-    for x_value in range(part_target.shape[1]):
-        for y_value in range(part_target.shape[0]):
+    # Use advanced indexing to map the valid coordinates
+    img_warped[inversed_cds[1][valid_indices], inversed_cds[0][valid_indices]] = img[img_cds[1][valid_indices], img_cds[0][valid_indices]]
 
-            img_cds.append([x_value, y_value, 1])
+    # Check if interpolation is needed
+    if np.any(img_warped == 0):
 
-
-    img_cds = np.array(img_cds)
-
-    inversed_cds = np.linalg.inv(A)@np.transpose(img_cds)
-
-    img2 = np.zeros((output_size[0], output_size[1]))
-    
-    inversed_cds = np.transpose(inversed_cds)
-
-    for i, j in zip(inversed_cds, img_cds):
-
-        x_value = i[0]
-        y_value = i[1]
-
-        if x_value>0 and y_value>0:
-            if int(x_value)<img2.shape[1] and int(y_value)<img2.shape[0]:
-                img2[int(y_value), int(x_value)] = part_target[j[1], j[0]]
-
-
-
-
-    img2_rows = []
-    img2_columns = []
-    img2_pixel_values = []
-
-
-    for row in range(img2.shape[0]):
-        for column in range(img2.shape[1]):
-            img2_rows.append(row)
-            img2_columns.append(column)
-            img2_pixel_values.append(img2[row, column])
-
-    img2_rows = np.array(img2_rows)
-    img2_columns = np.array(img2_columns)
-    img2_pixel_values = np.array(img2_pixel_values)
-
-
-    zero_indices = np.where(img2_pixel_values == 0)[0]
-    cur_num_zero = len(zero_indices)
-    new_num_zero = 0
-
-    print("Let's start interpolation.")
-    print()
-
-    while cur_num_zero!=new_num_zero and cur_num_zero>1000:
-
-        cur_num_zero = len(zero_indices)
-
-        # Create a grid of points for interpolation
-        xi, yi = np.mgrid[min(img2_rows)-1:max(img2_rows), min(img2_columns)-1:max(img2_columns)]
-
-        # Interpolate values using griddata with 'nearest' method
-        zi = interpolate.griddata((img2_rows, img2_columns), img2_pixel_values, (xi, yi), method='nearest')
-        zi = zi.flatten()
-
-        # Replace zero values with interpolated values
-        for idx in zero_indices:
-            img2_pixel_values[idx] = zi[idx]
-
-
-        Z = np.array(img2_pixel_values).reshape(1068, 777)
+        # Interpolate only the zero values
+        zero_indices = np.stack(np.nonzero(img_warped == 0), axis=-1)
+        non_zero_indices = np.stack(np.nonzero(img_warped), axis=-1)
+        img_warped[img_warped == 0] = interpolate.griddata(
+            non_zero_indices, img_warped[img_warped != 0],
+            zero_indices, method='nearest'
+        )
         
-        zero_indices = np.where(img2_pixel_values == 0)[0]
-
-        new_num_zero = len(zero_indices)
-
-        print('After interpolation, the number of empty pixel is:', new_num_zero)
-    
-    else:
-        Z = np.array(img2_pixel_values).reshape(1068, 777)
-        print('Finished interpolation because there was no improvement.')
-
-
-    img_warped = Z
-        
-
-
     return img_warped
 
 
 
-
-
 def align_image(template, target, A):
+
     # To do
 
-    output_filter_x = filter_image(template, get_differential_filter())[0]
-    output_filter_y = filter_image(template, get_differential_filter())[1]
 
- 
-    D = []
+    # -----------------------------------------------------------------------------
+    # --------------- Implementation of Sobel filter ------------------------------
 
-    for i_y in range(output_filter_x.shape[0]):
-        for i_x in range(output_filter_x.shape[1]):
+    Gx = np.array([[-1.0, 0.0, 1.0], [-2.0, 0.0, 2.0], [-1.0, 0.0, 1.0]])
+    Gy = np.array([[-1.0, -2.0, -1.0], [0.0, 0.0, 0.0], [1.0, 2.0, 1.0]])
 
-            D.append(np.array([output_filter_x[i_y][i_x]*i_x,
-                          output_filter_x[i_y][i_x]*i_y,
-                          output_filter_x[i_y][i_x],
-                          output_filter_y[i_y][i_x]*i_x,
-                          output_filter_y[i_y][i_x]*i_y,
-                          output_filter_y[i_y][i_x]]))
-            
-    D = np.array(D)
-    H = np.matmul(D.transpose(), D)
+    [rows, columns] = np.shape(template)  # we need to know the shape of the input grayscale image
 
+    padded_template = np.pad(template, (1, 1), 'edge')
+
+    # Now we "sweep" the image in both x and y directions and compute the output
+    gx = np.zeros(shape=(rows, columns))
+    gy = np.zeros(shape=(rows, columns))
+
+    for i in range(0, padded_template.shape[0]-2):
+        for j in range(0, padded_template.shape[1]-2):
+            gx[i][j] = np.sum(np.multiply(Gx, padded_template[i:i + 3, j:j + 3]))  # x direction
+            gy[i][j] = np.sum(np.multiply(Gy, padded_template[i:i + 3, j:j + 3]))  # y direction
+
+
+    # value multiplied to derivatives change 
+    # the performance and speed of the codes.
+    gx = gx*1/100
+    gy = gy*1/100
     
+    # Some data manipulation for better performance
+    for i in range(gx.shape[0]):
+        gx[i][0] = 0
+        gx[i][-1] = 0
+
+    for i in range(gy.shape[1]):
+        gy[0][i] = 0
+        gy[-1][i] = 0
+    # -----------------------------------------------------------------------------
+    # -----------------------------------------------------------------------------   
+
+
+    # -----------------------------------------------------------------------------
+    # --------- Implementation of Inverse Compositional Images Alignment ----------
+        
+    # Compute indices (i_x, i_y) as grids
+    Ix, Iy = np.meshgrid(np.arange(template.shape[1]), np.arange(template.shape[0]))
+
+    # Vectorize computation of matrix D
+    D = np.stack([gx * Ix, gx * Iy, gx, gy * Ix, gy * Iy, gy], axis=-1)
+    
+    # Initialize H as a zero matrix
+    H = np.zeros((6, 6))
+    for d in D.reshape(-1, 6):
+        H += np.outer(d, d)
+    
+    num_itr = 0 
+    errors_list = []
+
     while True:
-        
-        print()
-        print('Current affine matrix:', A)
+        # Warp the image with the current estimate of A
         warped_img = warp_image(target, A, template.shape)
-
-        print()
-        print('Here is the output.')
-        print()
         
-        plt.imshow(warped_img, cmap='gray')
-        plt.axis('off')
-        plt.show()
+        if num_itr%5==0:
+            
+            plt.imshow(warped_img, cmap='gray')
+            plt.show()
 
+        # Compute the error image
         error = warped_img - template
 
-        plt.imshow(abs(error), cmap='jet')
-        plt.axis('off')
-        plt.show()
-
-        D = []
-
-        for i_y in range(output_filter_x.shape[0]):
-            for i_x in range(output_filter_x.shape[1]):
-                
-
-                D.append(np.array([output_filter_x[i_y][i_x]*i_x*error[i_y][i_x],
-                              output_filter_x[i_y][i_x]*i_y*error[i_y][i_x], 
-                              output_filter_x[i_y][i_x]*error[i_y][i_x],
-                              output_filter_y[i_y][i_x]*i_x*error[i_y][i_x], 
-                              output_filter_y[i_y][i_x]*i_y*error[i_y][i_x],
-                              output_filter_y[i_y][i_x]*error[i_y][i_x]]))
-            
-
-        F = np.sum(D, axis=0)
-
-
-        change_p = np.linalg.inv(H)@F.reshape(6, 1)
-
-        change_A = np.array([[1+change_p[0][0],change_p[1][0], change_p[2][0]],
-                             [change_p[3][0],1+change_p[4][0], change_p[5][0]],
+        # Vectorize computation of matrix F
+        F = np.einsum('ij,ijk->k', error, D)
+        
+        # Compute change in parameters
+        change_p, _, _, _ = np.linalg.lstsq(H, F, rcond=None)
+        
+        # Update the transformation matrix A
+        change_A = np.array([[1+change_p[0], change_p[1], change_p[2]],
+                             [change_p[3], 1+change_p[4], change_p[5]],
                              [0, 0, 1]])
-
-        new_A = A@np.linalg.inv(change_A)
-        norm_error = np.linalg.norm(change_p)
-
+        
+        # Compute the norm of the error
+        norm_error = np.linalg.norm(error)
+    
+        num_itr += 1
 
         print('Magnitude of required change of A is:', norm_error)
+        print('Number of iterations:', num_itr)
 
+        errors_list.append(norm_error)
 
-        if norm_error<100:
-            print("Magnitude of required change of A is small enough to stop the iteration!")
-            print("Let's use current affine transformation as a refined one!")
+        # Check for convergence
+        if num_itr > 30 or norm_error < 10000:
             break
-        
+    
         else:
-            print("Magnitude of required change of A is still high... Let's update affine transformation")
-            print("and keep doing experiment with new affine matrix.")
-            A = new_A
+            A = A @ np.linalg.inv(change_A)
 
+    # -----------------------------------------------------------------------------
+    # -----------------------------------------------------------------------------   
+    
+    A_refined = A
+    errors = np.array(errors_list)
 
-    A_refined = new_A
-    error = -100
-
-    return A_refined, error
-
+    return A_refined, errors
+    
 
 
 
 def track_multi_frames(template, img_list):
-    # To do
+
+    # To do         
+   
+    x1, x2 = find_match(template, target_list[0])
+
+    ransac_thr = 150
+    ransac_iter = 5
+
+    A = align_image_using_feature(x1, x2, ransac_thr, ransac_iter)
+
+    A_list = []
+
+    for i in img_list:
+
+        A_refined, error = align_image(template, i, A)
+        visualize_align_image(template, i, A, A_refined, error)
+
+        A_list.append(A_refined)
+
+
     return A_list
 
 
@@ -475,9 +355,7 @@ def visualize_find_match(img1, img2, x1, x2, img_h=500):
     for i in range(x1.shape[0]):
         plt.plot([x1[i, 0], x2[i, 0]], [x1[i, 1], x2[i, 1]], 'b')
         plt.plot([x1[i, 0], x2[i, 0]], [x1[i, 1], x2[i, 1]], 'bo')
-    
-    plt.title('All matched Keypoints') # code I made
-    plt.axis('off') # code I made
+    plt.axis('off')
     plt.show()
 
 
@@ -508,8 +386,6 @@ def visualize_align_image_using_feature(img1, img2, x1, x2, A, ransac_thr, img_h
             plt.plot([x1[i, 0], x2[i, 0]], [x1[i, 1], x2[i, 1]], 'r')
             plt.plot([x1[i, 0], x2[i, 0]], [x1[i, 1], x2[i, 1]], 'ro')
     
-    plt.title('Inliers and Boundary') # code I made
-    plt.axis('off')
     plt.show()
 
 def visualize_align_image(template, target, A, A_refined, errors=None):
@@ -590,22 +466,16 @@ def visualize_track_multi_frames(template, img_list, A_list):
     plt.title('Frame 4')
     plt.axis('off')
     plt.show()
-
+    
 #%%
 if __name__ == '__main__':
-
-
     template = cv2.imread('./JS_template.jpg', 0)  # read as grey scale image
     target_list = []
-    
     for i in range(4):
         target = cv2.imread('./JS_target{}.jpg'.format(i+1), 0)  # read as grey scale image
-        target_list.append(target) 
-
-
+        target_list.append(target)
 
     x1, x2 = find_match(template, target_list[0])
-
     visualize_find_match(template, target_list[0], x1, x2)
 
     ransac_thr = 150
@@ -613,22 +483,18 @@ if __name__ == '__main__':
 
     A = align_image_using_feature(x1, x2, ransac_thr, ransac_iter)
 
-    visualize_align_image_using_feature(template, target_list[0], x1, x2, A, ransac_thr)
+    img_warped = warp_image(target_list[0], A, template.shape)
+    plt.imshow(img_warped, cmap='gray', vmin=0, vmax=255)
+    plt.axis('off')
+    plt.show()
 
-    print('Found initial Affine Transformation Matrix using the template and the first target: ')
-    print(A)
+    visualize_align_image_using_feature(template, target_list[0], x1, x2, A, ransac_thr, img_h=500)
 
-    print()
-    print("Let's find optimized affine matrix for target 2")
-    print()
+    A_refined, errors = align_image(template, target_list[0], A)
+    visualize_align_image(template, target_list[0], A, A_refined, errors)
 
-    A_refined, error = align_image(template, target_list[1], A)
- 
-    
-    # visualize_align_image(template, target_list[i], A, A_refined, errors)
-
-    # A_list = track_multi_frames(template, target_list)
-    # visualize_track_multi_frames(template, target_list, A_list)
+    A_list = track_multi_frames(template, target_list)
+    visualize_track_multi_frames(template, target_list, A_list)
 
 
- # %%
+# %%

@@ -1,3 +1,4 @@
+#%%
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -354,7 +355,7 @@ if __name__=='__main__':
     im = cv2.imread('cameraman.tif', 0)    
     hog = extract_hog(im)
 
-    I_target= cv2.imread('people.png', 0)
+    I_target= cv2.imread('target.png', 0)
     #MxN image
 
     I_template = cv2.imread('template.png', 0)
@@ -362,8 +363,10 @@ if __name__=='__main__':
 
     bounding_boxes=face_recognition(I_target, I_template)
     
-    I_target_c= cv2.imread('people.png')
+    I_target_c= cv2.imread('target.png')
     # MxN image (just for visualization)
     visualize_face_detection(I_target_c, bounding_boxes, I_template.shape[0])
     #this is visualization code.
 
+
+# %%

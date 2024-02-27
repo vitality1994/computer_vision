@@ -1,3 +1,4 @@
+#%%
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -367,3 +368,5 @@ if __name__=='__main__':
     visualize_face_detection(I_target_c, bounding_boxes, I_template.shape[0])
     #this is visualization code.
 
+
+# %%
